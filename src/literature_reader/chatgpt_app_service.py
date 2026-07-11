@@ -21,7 +21,7 @@ from .config import RunConfig
 from .extractors import SUPPORTED_SUFFIXES, extract_document
 from .models import Annotation, PaperMap, ReadingCopy, SourceDocument
 from .pipeline import write_outputs
-from .quality import validate_reading_copy
+from .quality import AnnotationQualityError, validate_annotation_detail, validate_reading_copy
 
 
 class ReadingJobError(ValueError):
@@ -159,12 +159,21 @@ class ReadingJobStore:
                 if following_index < len(job.source.paragraphs)
                 else None
             )
+            broader_previous = job.source.paragraphs[max(0, start - 2) : start]
+            broader_following = job.source.paragraphs[
+                following_index : min(len(job.source.paragraphs), following_index + 2)
+            ]
             return {
                 "job_id": job.job_id,
                 "batch_index": batch_index,
                 "batch_count": total_batches,
+                "paper_map": _paper_map_payload(job.paper_map),
                 "previous_context": _paragraph_payload(previous) if previous else None,
                 "following_context": _paragraph_payload(following) if following else None,
+                "surrounding_context": {
+                    "before": [_paragraph_payload(paragraph) for paragraph in broader_previous],
+                    "after": [_paragraph_payload(paragraph) for paragraph in broader_following],
+                },
                 "paragraphs": [_paragraph_payload(paragraph) for paragraph in batch],
                 "instruction": _annotation_instruction(job.translation),
             }
@@ -353,7 +362,7 @@ class ReadingJobStore:
         try:
             warnings = validate_reading_copy(
                 reading_copy,
-                RunConfig(provider="mock", translation=job.translation),
+                RunConfig(provider="mock", translation=job.translation, annotation_depth="deep"),
             )
         except ValueError as error:
             raise ReadingJobError(str(error)) from error
@@ -395,7 +404,7 @@ def _annotation_from_payload(
     translation = translation_value.strip() if isinstance(translation_value, str) else None
     if translation_mode == "full" and not translation:
         raise ReadingJobError("Full translation was requested, but an annotation has no translation.")
-    return Annotation(
+    annotation = Annotation(
         anchor=values["anchor"],
         role=values["role"],
         context=values["context"],
@@ -404,6 +413,11 @@ def _annotation_from_payload(
         caveat=values["caveat"],
         translation=translation,
     )
+    try:
+        validate_annotation_detail(annotation, "deep")
+    except AnnotationQualityError as error:
+        raise ReadingJobError(str(error)) from error
+    return annotation
 
 
 def _annotation_instruction(translation: str) -> str:
@@ -413,9 +427,16 @@ def _annotation_instruction(translation: str) -> str:
         else "不要给出全文翻译。"
     )
     return (
-        "为返回的每个锚点写一条中文批注，然后调用 save_annotation_batch。"
-        "批注必须解释该段在整篇论文论证中的作用，并明确与前后段的关系；"
-        "不要只复述或逐句翻译原文。保留必要的英文术语、变量名和原文事实边界。"
+        "为返回的每个锚点写一条真正帮助阅读的中文批注，然后调用 save_annotation_batch。"
+        "这不是按页摘要：读者应能把右栏当作逐段老师讲解，并在不熟悉该领域时仍看懂作者到底在说什么。它必须面向零基础读者。\n"
+        "字段要求：role 只用一句话说明段落在全文中的位置；context 必须点名它继承的前文概念和它为后文准备的具体问题、方法或结论，"
+        "不能只写“承接前文、引出后文”。explanation 是最重要的字段，必须写 2–4 句连贯中文，通常不少于 100 个非空白字符："
+        "先说明作者这段真正主张、定义或证明了什么，再用通俗语言拆开因果/推理步骤、解释陌生术语，并说清它为什么影响后续论证。"
+        "不要在 explanation 中写“作用：”“衔接：”“要点：”式概要，也不要只改写原句。takeaway 用一句白话总结读者此刻应理解的结论；"
+        "caveat 只写原文支持的边界、不确定性，或明确没有额外边界。\n"
+        "若段落含公式或符号，必须在 explanation 中用 \\( ... \\) 重写关键公式（独立公式可用 \\[ ... \\]），例如 \\(R_{i,t}=\\Delta^{ad}_{i,t}C_i\\)。"
+        "随后解释每个符号代表什么、某一项变大时结论如何变化，以及作者为什么需要这个公式；不要把下标、上标写成普通散乱字符。"
+        "保留必要的英文术语、变量名和原文事实边界，不得编造论文没有说明的事实。\n"
         + translation_instruction
     )
 
@@ -435,6 +456,17 @@ def _paragraph_payload(paragraph) -> dict[str, Any]:
         "section": paragraph.section,
         "page_number": paragraph.page_number,
         "text": paragraph.text,
+    }
+
+
+def _paper_map_payload(paper_map: PaperMap | None) -> dict[str, Any] | None:
+    if paper_map is None:
+        return None
+    return {
+        "research_question": paper_map.research_question,
+        "central_claim": paper_map.central_claim,
+        "argument_map": list(paper_map.argument_map),
+        "scope_notes": paper_map.scope_notes,
     }
 
 
