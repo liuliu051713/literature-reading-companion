@@ -35,11 +35,12 @@ APP_INSTRUCTIONS = """你是“Literature Reading Companion”的阅读协作助
 当用户上传论文并要求生成带批注的阅读版时，请严格执行以下流程：
 1. 调用 start_reading_copy，传入用户上传的 paper 文件和翻译选项。
 2. 调用 get_document_outline，再基于已上传原文写出中文论文阅读地图，并调用 save_paper_map 保存它。
-3. 对每一个 batch_index，调用 get_annotation_batch；根据该批原文和前后文，用中文写出每个锚点的 role、context、explanation、takeaway、caveat；随后立即调用 save_annotation_batch 保存。批注必须联系论文整体论证，不能只是复述原文。
+3. 对每一个 batch_index，调用 get_annotation_batch；根据该批原文、论文地图和前后文，用中文写出每个锚点的 role、context、explanation、takeaway、caveat；随后立即调用 save_annotation_batch 保存。role 和 context 只用于短导航；explanation 必须是右栏的主体：用 2–4 句连贯中文，通常不少于 100 个非空白字符，面向完全不了解该领域的读者解释作者到底在说什么、推理如何成立、术语是什么意思、以及为什么会影响后文。不得把 explanation 写成“本段作用/衔接/要点”的页级摘要，也不得只改写原文。
+   如果原文含公式或符号，必须在 explanation 中用 \\( ... \\) 或 \\[ ... \\] 重写关键公式，并解释各符号和变化方向。例如 \\(R_{i,t}=\\Delta^{ad}_{i,t}C_i\\)；不要将上下标写成普通散乱字符。
 4. 在所有锚点保存后，调用 get_reading_progress。只有 complete 为 true 时才调用 render_reading_copy。
 5. 告诉用户已生成可下载的 HTML 与 DOCX 阅读版，并简要说明翻译选项。
 
-不得跳过任何正文锚点。不要把章节标题误当作正文。不得编造原文没有说明的事实；不确定处应写入 caveat。除必要的原文术语外，所有面向读者的内容使用简体中文。
+不得跳过任何正文锚点。不要把章节标题误当作正文。不得编造原文没有说明的事实；不确定处应写入 caveat。context 必须指出具体的前文概念和具体的后文问题，不能只写“承接前文、引出后文”。除必要的原文术语外，所有面向读者的内容使用简体中文。
 """
 
 
@@ -56,11 +57,11 @@ class AnnotationInput(BaseModel):
     """One source-linked note written by ChatGPT for one paragraph anchor."""
 
     anchor: str = Field(description="Exact paragraph anchor returned by get_annotation_batch, such as P001.")
-    role: str = Field(description="该段在论文论证中的作用，使用简体中文。")
-    context: str = Field(description="该段与前后段及论文整体结构的关系，使用简体中文。")
-    explanation: str = Field(description="帮助读者理解论证、方法或证据的解释，使用简体中文。")
-    takeaway: str = Field(description="读者应带走的关键信息，使用简体中文。")
-    caveat: str = Field(description="证据边界、不确定性或阅读提醒，使用简体中文。")
+    role: str = Field(description="一句话说明该段在全文论证中的位置，使用简体中文。")
+    context: str = Field(description="点名该段继承的前文概念及它为后文准备的具体问题、方法或结论，使用简体中文；不得只写“承接前文”。")
+    explanation: str = Field(description="右栏主体。用 2–4 句、通常不少于 100 个非空白字符的简体中文，面向零基础读者详细解释正文的实际含义、推理步骤、术语和后续影响。公式用 \\( ... \\) 或 \\[ ... \\] 写，并解释符号；不要写成段落作用摘要。")
+    takeaway: str = Field(description="用一句通俗中文写出读完该段真正应理解的结论。")
+    caveat: str = Field(description="仅写原文支持的证据边界、不确定性或阅读提醒，使用简体中文。")
     translation: str | None = Field(
         default=None,
         description="仅当用户选择 full 时填写的忠实中文全文翻译。",
@@ -167,7 +168,7 @@ def build_mcp_server(
         title="获取一批原文段落",
         description=(
             "返回少量原文段落、稳定锚点以及相邻上下文。必须逐批调用，并为返回的每个锚点"
-            "生成联系全文论证的中文批注，随后调用 save_annotation_batch。"
+            "生成面向零基础读者的中文逐段精读，随后调用 save_annotation_batch。"
         ),
         annotations=read_only,
     )
@@ -177,14 +178,14 @@ def build_mcp_server(
         result = store.annotation_batch(job_id, batch_index)
         return _structured_result(
             result,
-            "请为本批每个锚点写中文深度批注，而不是逐句复述；然后立即调用 save_annotation_batch。",
+            "请为本批每个锚点写中文逐段精读：解释正文实质、具体上下文和必要公式，而不是页级摘要或逐句复述；然后立即调用 save_annotation_batch。",
         )
 
     @mcp.tool(
         title="保存一批对应批注",
         description=(
             "保存一批由 ChatGPT 依据原文写出的、与段落锚点一一对应的中文批注。"
-            "每个返回锚点都必须恰好有一项。"
+            "每个返回锚点都必须恰好有一项；explanation 必须是详细、零基础可读的正文解释。"
         ),
         annotations=writes_local_state,
     )
