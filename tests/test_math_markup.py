@@ -8,7 +8,7 @@ from pathlib import Path
 from docx import Document
 
 from literature_reader.math_markup import append_docx_markup, render_html_markup, split_math_markup
-from literature_reader.models import Annotation, PaperMap, Paragraph, ReadingCopy, SourceDocument
+from literature_reader.models import Annotation, FocusPoint, PaperMap, Paragraph, ReadingCopy, SourceDocument
 from literature_reader.renderers import render_docx, render_html
 
 
@@ -62,6 +62,18 @@ class MathMarkupTests(unittest.TestCase):
                 ),
                 takeaway="风险排序同时考虑不确定性和后果，而不是只看预测误差。",
                 caveat="该量用于决定审核优先级，不等于对未来实际损失的精确预测。",
+                focus_points=(
+                    FocusPoint(
+                        quote=r"R_{i,t}=\Delta^{ad}_{i,t}C_i",
+                        kind="formula",
+                        formula_latex=r"R_{i,t}=\Delta^{ad}_{i,t}C_i",
+                        explanation=(
+                            "这个乘法关系把“不确定程度”和“犯错代价”放在同一把尺子上比较。"
+                            "例如不确定性宽度为 2、代价为 5 时得分是 10；若代价变成 10，得分就变成 20，"
+                            "因此更值得优先安排人工审核。"
+                        ),
+                    ),
+                ),
             )
             reading_copy = ReadingCopy(
                 source=source,
@@ -74,8 +86,10 @@ class MathMarkupTests(unittest.TestCase):
             render_docx(reading_copy, docx_path)
 
             html = html_path.read_text(encoding="utf-8")
-            self.assertLess(html.index("逐段精读"), html.index("这段放在全文中的位置"))
+            self.assertLess(html.index("逐段精读"), html.index("这一段在全文中做什么"))
             self.assertIn("<msubsup>", html)
+            self.assertIn("source-highlight", html)
+            self.assertIn("原文与讲解一一对应", html)
             with zipfile.ZipFile(docx_path) as archive:
                 xml = archive.read("word/document.xml").decode("utf-8")
             self.assertIn("逐段精读", xml)

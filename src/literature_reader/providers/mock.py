@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..config import RunConfig
-from ..models import Annotation, PaperMap, Paragraph, SourceDocument
+from ..models import Annotation, FocusPoint, PaperMap, Paragraph, SourceDocument
 from .base import ModelProvider
 
 
@@ -63,6 +63,16 @@ class MockProvider(ModelProvider):
                     ),
                     takeaway="如需真正帮助理解论文，请配置 OpenAI 或 Gemini 后重新生成。",
                     caveat="离线 mock 模式不生成任何实质性的学术解释。",
+                    focus_points=(
+                        FocusPoint(
+                            quote=paragraph.text,
+                            kind="claim",
+                            explanation=(
+                                "这是离线流程的整段占位标记，用来验证左侧原文能够准确定位到右侧批注。"
+                                "mock 模式不会判断这句话的真实重点，也不会解释其中的术语、理论或公式。"
+                            ),
+                        ),
+                    ),
                 )
             )
         return tuple(annotations)

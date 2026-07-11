@@ -35,12 +35,12 @@ APP_INSTRUCTIONS = """你是“Literature Reading Companion”的阅读协作助
 当用户上传论文并要求生成带批注的阅读版时，请严格执行以下流程：
 1. 调用 start_reading_copy，传入用户上传的 paper 文件和翻译选项。
 2. 调用 get_document_outline，再基于已上传原文写出中文论文阅读地图，并调用 save_paper_map 保存它。
-3. 对每一个 batch_index，调用 get_annotation_batch；根据该批原文、论文地图和前后文，用中文写出每个锚点的 role、context、explanation、takeaway、caveat；随后立即调用 save_annotation_batch 保存。role 和 context 只用于短导航；explanation 必须是右栏的主体：用 2–4 句连贯中文，通常不少于 100 个非空白字符，面向完全不了解该领域的读者解释作者到底在说什么、推理如何成立、术语是什么意思、以及为什么会影响后文。不得把 explanation 写成“本段作用/衔接/要点”的页级摘要，也不得只改写原文。
-   如果原文含公式或符号，必须在 explanation 中用 \\( ... \\) 或 \\[ ... \\] 重写关键公式，并解释各符号和变化方向。例如 \\(R_{i,t}=\\Delta^{ad}_{i,t}C_i\\)；不要将上下标写成普通散乱字符。
+3. 对每一个 batch_index，调用 get_annotation_batch；根据该批原文、论文地图和前后文，用中文写出每个锚点的 role、context、explanation、takeaway、caveat 和 focus_points；随后立即调用 save_annotation_batch 保存。role 和 context 只用于短导航；explanation 必须是右栏的主体：用 2–4 句连贯中文，通常不少于 100 个非空白字符，面向完全不了解该领域的读者解释作者到底在说什么、推理如何成立、术语是什么意思、以及为什么会影响后文。不得把 explanation 写成“本段作用/衔接/要点”的页级摘要，也不得只改写原文。
+   每段必须有 1–3 条 focus_points。quote 必须逐字复制本段真实的关键句或短语，供左侧原文高亮；每条 focus-point explanation 要像老师停下来讲解该句一样，不能重复整段摘要。如果原文含公式或符号，必须有 kind=formula 的 focus point，写出 formula_latex、解释各符号和变化方向，并给一个很小的数值例子。explanation 中也必须用 \\( ... \\) 或 \\[ ... \\] 重写关键公式；不要将上下标写成普通散乱字符。
 4. 在所有锚点保存后，调用 get_reading_progress。只有 complete 为 true 时才调用 render_reading_copy。
 5. 告诉用户已生成可下载的 HTML 与 DOCX 阅读版，并简要说明翻译选项。
 
-不得跳过任何正文锚点。不要把章节标题误当作正文。不得编造原文没有说明的事实；不确定处应写入 caveat。context 必须指出具体的前文概念和具体的后文问题，不能只写“承接前文、引出后文”。除必要的原文术语外，所有面向读者的内容使用简体中文。
+不得跳过任何正文锚点。不要把章节标题误当作正文。不得编造原文没有说明的事实；不确定处应写入 caveat。context 必须指出具体的前文概念和具体的后文问题，不能只写“承接前文、引出后文”。除必要的原文术语外，所有面向读者的内容使用简体中文。若读者在完成后要求解释某个未标记的原文句子，调用 get_selected_passage_context，并根据返回的原文与上下文直接用中文讲解该句；不要只给摘要。
 """
 
 
@@ -51,6 +51,22 @@ class UploadedPaper(BaseModel):
     file_id: str = Field(description="ChatGPT file identifier; retain only for the current tool call.")
     mime_type: str | None = Field(default=None, description="Optional MIME type supplied by ChatGPT.")
     file_name: str | None = Field(default=None, description="Original uploaded filename.")
+
+
+class FocusPointInput(BaseModel):
+    """One exact source quote that becomes a highlighted teaching card."""
+
+    quote: str = Field(description="从当前锚点原文逐字复制的一句关键句或短语；不可改写。")
+    kind: Literal["claim", "term", "mechanism", "evidence", "formula", "limitation"] = Field(
+        description="该句值得停下来读的原因。"
+    )
+    explanation: str = Field(
+        description="针对这句原文的详细中文讲解，面向零基础读者；不得只重述整段摘要。"
+    )
+    formula_latex: str | None = Field(
+        default=None,
+        description="仅 kind=formula 时填写的 TeX 公式，不含数学分隔符。",
+    )
 
 
 class AnnotationInput(BaseModel):
@@ -65,6 +81,11 @@ class AnnotationInput(BaseModel):
     translation: str | None = Field(
         default=None,
         description="仅当用户选择 full 时填写的忠实中文全文翻译。",
+    )
+    focus_points: list[FocusPointInput] = Field(
+        min_length=1,
+        max_length=3,
+        description="1–3 个来自该段原文的重点句、术语或公式；它们会在左侧高亮，并在右侧显示逐点讲解。",
     )
 
 
@@ -208,6 +229,27 @@ def build_mcp_server(
 
         result = store.progress(job_id)
         return _structured_result(result, "若 complete 为 false，请继续获取并保存缺失段落的批注。")
+
+    @mcp.tool(
+        title="解释读者选中的原文",
+        description=(
+            "当读者选中阅读版中任意一条未高亮的原文句子，并要求进一步解释时调用。"
+            "返回该句所在段落、前后文与论文地图；随后必须直接用中文讲解这句话，而不能只总结整段。"
+        ),
+        annotations=read_only,
+    )
+    def get_selected_passage_context(
+        job_id: str,
+        anchor: str,
+        selected_quote: str,
+    ) -> CallToolResult:
+        """Give ChatGPT the source context needed for an on-demand explanation."""
+
+        result = store.selected_passage_context(job_id, anchor, selected_quote)
+        return _structured_result(
+            result,
+            "请依据返回的原文和上下文，直接为读者讲解选中的句子：定义术语、拆开推理，必要时解释公式和数值例子。",
+        )
 
     @mcp.tool(
         title="生成带批注文献",

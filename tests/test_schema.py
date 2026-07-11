@@ -15,6 +15,8 @@ class SchemaTests(unittest.TestCase):
         required = annotation_response_schema()["properties"]["annotations"]["items"]["required"]
         self.assertIn("anchor", required)
         self.assertIn("context", required)
+        focus_points = annotation_response_schema()["properties"]["annotations"]["items"]["properties"]["focus_points"]
+        self.assertIn("quote", focus_points["items"]["required"])
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from ..config import RunConfig
-from ..models import Annotation, PaperMap, Paragraph, SourceDocument
+from ..models import Annotation, FocusPoint, PaperMap, Paragraph, SourceDocument
 from ..prompts import (
     ANNOTATION_SYSTEM_PROMPT,
     PAPER_MAP_SYSTEM_PROMPT,
@@ -108,6 +108,7 @@ def _annotation_from_payload(item: Any) -> Annotation:
         explanation=_required_text(item, "explanation"),
         takeaway=_required_text(item, "takeaway"),
         caveat=_required_text(item, "caveat"),
+        focus_points=_focus_points_from_payload(item),
     )
 
 
@@ -116,3 +117,29 @@ def _optional_text(payload: dict[str, Any], key: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"Provider response field '{key}' must be a string.")
     return value.strip()
+
+
+def _focus_points_from_payload(payload: dict[str, Any]) -> tuple[FocusPoint, ...]:
+    """Read the optional source-span teaching cards without breaking old clients."""
+
+    raw_points = payload.get("focus_points", [])
+    if raw_points is None:
+        return ()
+    if not isinstance(raw_points, list):
+        raise ValueError("Provider response field 'focus_points' must be an array when supplied.")
+    points: list[FocusPoint] = []
+    for raw_point in raw_points:
+        if not isinstance(raw_point, dict):
+            raise ValueError("Every focus point must be an object.")
+        formula_latex = raw_point.get("formula_latex")
+        if formula_latex is not None and not isinstance(formula_latex, str):
+            raise ValueError("Focus point field 'formula_latex' must be a string when supplied.")
+        points.append(
+            FocusPoint(
+                quote=_required_text(raw_point, "quote"),
+                kind=_required_text(raw_point, "kind"),
+                explanation=_required_text(raw_point, "explanation"),
+                formula_latex=formula_latex.strip() if isinstance(formula_latex, str) and formula_latex.strip() else None,
+            )
+        )
+    return tuple(points)

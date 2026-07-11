@@ -15,6 +15,7 @@ from docx import Document
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.enum.text import WD_COLOR_INDEX
 from docx.shared import Pt
 
 from ..math_markup import append_docx_markup
@@ -131,12 +132,33 @@ def _write_source_cell(
 
     source = cell.add_paragraph()
     append_docx_markup(source, text)
+    _write_source_focus_points(cell, annotation)
     if annotation.translation:
         translation = cell.add_paragraph()
         translation_label = translation.add_run("中文翻译：")
         translation_label.bold = True
         _set_run_font(translation_label)
         append_docx_markup(translation, annotation.translation)
+
+
+def _write_source_focus_points(cell: Any, annotation: Annotation) -> None:
+    """Keep the source-side stopping points visible in Word as well as HTML."""
+
+    if not annotation.focus_points:
+        return
+    label = cell.add_paragraph()
+    label_run = label.add_run("原文重点标记（对应右侧逐点讲解）")
+    label_run.bold = True
+    _set_run_font(label_run, size=9.5)
+    for index, point in enumerate(annotation.focus_points, start=1):
+        paragraph = cell.add_paragraph()
+        marker = paragraph.add_run(f"重点 {index}：")
+        marker.bold = True
+        marker.font.highlight_color = _focus_highlight(point.kind)
+        _set_run_font(marker, size=9.5)
+        quote = paragraph.add_run(point.quote)
+        quote.font.highlight_color = _focus_highlight(point.kind)
+        _set_run_font(quote, size=9.5)
 
 
 def _write_note_cell(cell: Any, annotation: Annotation) -> None:
@@ -146,6 +168,7 @@ def _write_note_cell(cell: Any, annotation: Annotation) -> None:
     _set_run_font(header_run)
 
     _write_note_paragraph(cell, "逐段精读", annotation.explanation, lead=True)
+    _write_focus_points(cell, annotation)
     _write_note_paragraph(cell, "这段放在全文中的位置", annotation.role)
     _write_note_paragraph(cell, "它怎样接上前后文", annotation.context)
     _write_note_paragraph(cell, "读完应真正理解什么", annotation.takeaway)
@@ -161,6 +184,42 @@ def _write_note_paragraph(cell: Any, label: str, value: str, *, lead: bool = Fal
         paragraph.paragraph_format.space_before = Pt(5)
         paragraph.paragraph_format.space_after = Pt(6)
     append_docx_markup(paragraph, value)
+
+
+def _write_focus_points(cell: Any, annotation: Annotation) -> None:
+    if not annotation.focus_points:
+        return
+    heading = cell.add_paragraph()
+    heading_run = heading.add_run("原文重点逐点讲解")
+    heading_run.bold = True
+    _set_run_font(heading_run, size=10)
+    for index, point in enumerate(annotation.focus_points, start=1):
+        quote = cell.add_paragraph()
+        quote_label = quote.add_run(f"重点 {index}（{point.kind}）：")
+        quote_label.bold = True
+        _set_run_font(quote_label, size=9.5)
+        quote_run = quote.add_run(point.quote)
+        quote_run.italic = True
+        _set_run_font(quote_run, size=9.5)
+        if point.formula_latex:
+            formula = cell.add_paragraph()
+            formula_label = formula.add_run("公式：")
+            formula_label.bold = True
+            _set_run_font(formula_label, size=9.5)
+            append_docx_markup(formula, r"\[" + point.formula_latex + r"\]")
+        explanation = cell.add_paragraph()
+        append_docx_markup(explanation, point.explanation)
+
+
+def _focus_highlight(kind: str) -> WD_COLOR_INDEX:
+    return {
+        "claim": WD_COLOR_INDEX.BRIGHT_GREEN,
+        "term": WD_COLOR_INDEX.TURQUOISE,
+        "mechanism": WD_COLOR_INDEX.YELLOW,
+        "evidence": WD_COLOR_INDEX.PINK,
+        "formula": WD_COLOR_INDEX.YELLOW,
+        "limitation": WD_COLOR_INDEX.GRAY_25,
+    }.get(kind, WD_COLOR_INDEX.YELLOW)
 
 
 def _set_run_font(run: Any, *, size: float | None = None) -> None:
