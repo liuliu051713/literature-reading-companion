@@ -20,6 +20,7 @@ from urllib.parse import quote, urlparse
 
 import httpx
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
 from pydantic import BaseModel, Field
 from starlette.applications import Starlette
@@ -82,6 +83,7 @@ def build_mcp_server(
         host=host,
         port=port,
         json_response=True,
+        transport_security=_transport_security_settings(public_base_url),
     )
     read_only = ToolAnnotations(
         readOnlyHint=True,
@@ -254,7 +256,7 @@ def build_mcp_server(
 
 
 def build_asgi_app(store: ReadingJobStore, mcp: FastMCP) -> Starlette:
-    """Expose both `/mcp` and short-lived output downloads from one process."""
+    """Expose both the /mcp endpoint and short-lived output downloads from one process."""
 
     async def health(_: object) -> JSONResponse:
         removed = store.cleanup_expired()
@@ -342,6 +344,42 @@ def _public_base_url(configured_url: str, ctx: Context | None) -> str:
             "Unable to infer a public HTTPS URL. Set LRC_PUBLIC_BASE_URL to your public HTTPS tunnel or deployment URL."
         )
     return f"https://{host}"
+
+
+def _transport_security_settings(public_base_url: str) -> TransportSecuritySettings:
+    """Allow local development plus one explicitly configured public HTTPS host.
+
+    FastMCP enables DNS-rebinding protection automatically for a loopback host.
+    A Quick Tunnel preserves its public Host header, so the exact tunnel host
+    must be allow-listed instead of disabling that protection for every host.
+    """
+
+    allowed_hosts = [
+        "127.0.0.1",
+        "127.0.0.1:*",
+        "localhost",
+        "localhost:*",
+        "[::1]",
+        "[::1]:*",
+    ]
+    allowed_origins = [
+        "http://127.0.0.1:*",
+        "http://localhost:*",
+        "http://[::1]:*",
+        "https://chatgpt.com",
+        "https://chat.openai.com",
+    ]
+    if public_base_url:
+        parsed = urlparse(public_base_url)
+        if parsed.scheme != "https" or not parsed.netloc:
+            raise ReadingJobError("LRC_PUBLIC_BASE_URL must be a public HTTPS URL.")
+        allowed_hosts.append(parsed.netloc)
+        allowed_origins.append(f"https://{parsed.netloc}")
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allowed_hosts,
+        allowed_origins=allowed_origins,
+    )
 
 
 def _download_url(public_base_url: str, job_id: str, filename: str) -> str:
