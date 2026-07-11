@@ -19,11 +19,11 @@ def render_html(reading_copy: ReadingCopy, path: str | Path) -> Path:
 
     paper_map = reading_copy.paper_map
     html = f"""<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{escape(reading_copy.source.title)} — reading copy</title>
+  <title>{escape(reading_copy.source.title)} — 带批注的阅读版</title>
   <style>
     :root {{ color-scheme: light; --ink:#1d2433; --muted:#617086; --line:#dce3eb; --paper:#fff; --note:#f5f8ff; --accent:#2457d6; }}
     * {{ box-sizing: border-box; }}
@@ -56,21 +56,21 @@ def render_html(reading_copy: ReadingCopy, path: str | Path) -> Path:
 <body>
   <main>
     <header>
-      <div class="meta">Annotated reading copy · source preserved locally</div>
+      <div class="meta">带批注的阅读版 · 原始文件仅在本地保留</div>
       <h1>{escape(reading_copy.source.title)}</h1>
-      <div class="meta">Original file: {escape(reading_copy.source.source_path.name)}</div>
+      <div class="meta">原始文件：{escape(reading_copy.source.source_path.name)}</div>
     </header>
     <section class="paper-map" aria-labelledby="map-title">
-      <h2 id="map-title">Paper-level reading map</h2>
+      <h2 id="map-title">论文整体阅读地图</h2>
       <dl>
-        <dt>Research question</dt><dd>{escape(paper_map.research_question)}</dd>
-        <dt>Central claim</dt><dd>{escape(paper_map.central_claim)}</dd>
-        <dt>Argument map</dt><dd>{escape(" → ".join(paper_map.argument_map))}</dd>
-        <dt>Scope note</dt><dd>{escape(paper_map.scope_notes)}</dd>
+        <dt>研究问题</dt><dd>{escape(paper_map.research_question)}</dd>
+        <dt>核心主张</dt><dd>{escape(paper_map.central_claim)}</dd>
+        <dt>论证主线</dt><dd>{escape(" → ".join(paper_map.argument_map))}</dd>
+        <dt>适用范围与说明</dt><dd>{escape(paper_map.scope_notes)}</dd>
       </dl>
     </section>
     {_warnings(reading_copy.warnings)}
-    <section class="reading-copy" aria-label="Source-linked annotations">
+    <section class="reading-copy" aria-label="原文对应批注">
       {"".join(rows)}
     </section>
   </main>
@@ -94,25 +94,25 @@ def _render_passage(
     if page_number:
         source_meta.append(f"page {page_number}")
     translation = (
-        f'<div class="translation"><div class="anchor">Chinese translation</div><p>{escape(annotation.translation)}</p></div>'
+        f'<div class="translation"><div class="anchor">中文翻译</div><p>{escape(annotation.translation)}</p></div>'
         if annotation.translation
         else ""
     )
     return f"""<article id="{escape(anchor)}">
   <section class="source">
-    <div class="section">{escape(section or "Source passage")}</div>
+    <div class="section">{escape(section or "原文段落")}</div>
     <div class="anchor">{escape(" · ".join(source_meta))}</div>
     <p>{escape(text)}</p>
     {translation}
   </section>
-  <aside class="note" aria-label="Annotation for {escape(anchor)}">
-    <div class="anchor">Annotation · {escape(anchor)}</div>
+  <aside class="note" aria-label="{escape(anchor)} 的批注">
+    <div class="anchor">批注 · {escape(anchor)}</div>
     <dl>
-      <div><dt>Role in the paper</dt><dd>{escape(annotation.role)}</dd></div>
-      <div><dt>Context</dt><dd>{escape(annotation.context)}</dd></div>
-      <div><dt>Reading explanation</dt><dd>{escape(annotation.explanation)}</dd></div>
-      <div><dt>Takeaway</dt><dd>{escape(annotation.takeaway)}</dd></div>
-      <div><dt>Caveat</dt><dd>{escape(annotation.caveat)}</dd></div>
+      <div><dt>段落作用</dt><dd>{escape(annotation.role)}</dd></div>
+      <div><dt>上下文关系</dt><dd>{escape(annotation.context)}</dd></div>
+      <div><dt>阅读解释</dt><dd>{escape(annotation.explanation)}</dd></div>
+      <div><dt>阅读要点</dt><dd>{escape(annotation.takeaway)}</dd></div>
+      <div><dt>边界与提醒</dt><dd>{escape(annotation.caveat)}</dd></div>
     </dl>
   </aside>
 </article>"""
@@ -122,4 +122,4 @@ def _warnings(warnings: tuple[str, ...]) -> str:
     if not warnings:
         return ""
     content = "".join(f"<div>{escape(warning)}</div>" for warning in warnings)
-    return f'<section class="warning" aria-label="Warnings">{content}</section>'
+    return f'<section class="warning" aria-label="提示">{content}</section>'

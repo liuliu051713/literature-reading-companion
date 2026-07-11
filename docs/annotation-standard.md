@@ -3,6 +3,9 @@
 The product goal is comprehension, not automatic paraphrase. Every annotation
 must be linked to a stable source anchor and contain the following fields.
 
+All reader-facing fields in v0.1 must be written in Simplified Chinese. The
+source text and its stable anchor remain unchanged.
+
 | Field | Required behaviour |
 | --- | --- |
 | anchor | Must exactly match a source paragraph anchor such as P014. |

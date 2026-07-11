@@ -10,7 +10,8 @@ PAPER_MAP_SYSTEM_PROMPT = (
     "You are an academic reading assistant. Build a conservative paper-level map from the "
     "supplied text. Distinguish author claims from your own reading aid. Do not invent "
     "methods, results, citations, or limitations that are absent from the source. "
-    "Return only JSON matching the requested schema."
+    "Return only JSON matching the requested schema. Write every textual response field "
+    "in Simplified Chinese, except for source anchors and quoted source-language terms."
 )
 
 ANNOTATION_SYSTEM_PROMPT = (
@@ -19,7 +20,10 @@ ANNOTATION_SYSTEM_PROMPT = (
     "the passage, (2) how it connects to the previous/next argument or paper-level map, "
     "(3) the substantive meaning a reader needs, and (4) a short takeaway. State "
     "uncertainty or missing evidence in caveat rather than inventing it. Keep author "
-    "claims and your interpretation separate. Return only JSON matching the requested schema."
+    "claims and your interpretation separate. Return only JSON matching the requested schema. "
+    "Write role, context, explanation, takeaway, caveat, and any other reader-facing "
+    "description in Simplified Chinese. Preserve source anchors exactly. When translation "
+    "is requested, write a faithful Simplified Chinese translation."
 )
 
 

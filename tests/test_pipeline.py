@@ -27,13 +27,14 @@ class PipelineTests(unittest.TestCase):
                 [annotation.anchor for annotation in reading_copy.annotations],
                 ["P001", "P002"],
             )
-            self.assertIn("followed by P002", reading_copy.annotations[0].context)
-            self.assertIn("preceded by P001", reading_copy.annotations[1].context)
+            self.assertIn("后一段为 P002", reading_copy.annotations[0].context)
+            self.assertIn("前一段为 P001", reading_copy.annotations[1].context)
             self.assertTrue(paths.html and paths.html.exists())
             self.assertTrue(paths.docx and paths.docx.exists())
             html = paths.html.read_text(encoding="utf-8")
             self.assertIn('id="P001"', html)
-            self.assertIn("Annotation · P002", html)
+            self.assertIn("批注 · P002", html)
+            self.assertIn("流程验证占位批注", html)
 
     def test_mock_translation_mode_fills_placeholder(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
