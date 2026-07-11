@@ -9,6 +9,53 @@ from pathlib import Path
 
 @unittest.skipIf(importlib.util.find_spec("mcp") is None, "ChatGPT App dependencies are optional")
 class ChatGPTMCPTests(unittest.TestCase):
+    def test_configured_public_tunnel_host_is_accepted_but_other_hosts_are_rejected(self) -> None:
+        from starlette.testclient import TestClient
+
+        from literature_reader.chatgpt_app_service import ReadingJobStore
+        from literature_reader.chatgpt_mcp import build_asgi_app, build_mcp_server
+
+        initialize = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {"name": "test-client", "version": "1.0"},
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            store = ReadingJobStore(Path(directory), batch_size=4)
+            server = build_mcp_server(
+                store,
+                public_base_url="https://example.trycloudflare.com",
+                max_upload_bytes=1024 * 1024,
+                host="127.0.0.1",
+                port=8000,
+            )
+            app = build_asgi_app(store, server)
+            with TestClient(app) as client:
+                accepted = client.post(
+                    "/mcp",
+                    json=initialize,
+                    headers={
+                        "host": "example.trycloudflare.com",
+                        "accept": "application/json",
+                    },
+                )
+                rejected = client.post(
+                    "/mcp",
+                    json=initialize,
+                    headers={
+                        "host": "other.trycloudflare.com",
+                        "accept": "application/json",
+                    },
+                )
+
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(rejected.status_code, 421)
+
     def test_tools_expose_chatgpt_file_parameter_and_download_links(self) -> None:
         from literature_reader.chatgpt_app_service import ReadingJobStore
         from literature_reader.chatgpt_mcp import build_mcp_server
