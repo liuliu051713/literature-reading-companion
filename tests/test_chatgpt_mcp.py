@@ -90,6 +90,16 @@ class ChatGPTMCPTests(unittest.TestCase):
                             ),
                             "takeaway": "即使是测试文本，也必须先通过锚点核对，才能安全生成阅读版。",
                             "caveat": "这只是工具流程的测试材料，不能外推为真实论文解释质量。",
+                            "focus_points": [
+                                {
+                                    "quote": "A short paragraph for MCP verification.",
+                                    "kind": "claim",
+                                    "explanation": (
+                                        "这条测试正文的意义不在学术内容，而在确认系统会把一条精确原文和一张右侧讲解卡稳定绑定。"
+                                        "读者点击左侧这句时，应当能回到同一锚点，而不会误跳到另一篇或另一段材料。"
+                                    ),
+                                }
+                            ],
                         }
                     ],
                 )
@@ -107,6 +117,8 @@ class ChatGPTMCPTests(unittest.TestCase):
                 self.assertIn("paper", start_tool.inputSchema["properties"])
                 render_tool = next(tool for tool in tools if tool.name == "render_reading_copy")
                 self.assertNotIn("ctx", render_tool.inputSchema["properties"])
+                selected_tool = next(tool for tool in tools if tool.name == "get_selected_passage_context")
+                self.assertIn("selected_quote", selected_tool.inputSchema["properties"])
 
                 result = await server.call_tool(
                     "render_reading_copy",

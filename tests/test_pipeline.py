@@ -33,8 +33,10 @@ class PipelineTests(unittest.TestCase):
             self.assertTrue(paths.docx and paths.docx.exists())
             html = paths.html.read_text(encoding="utf-8")
             self.assertIn('id="P001"', html)
-            self.assertIn("批注 · P002", html)
+            self.assertIn("中文精读 · P002", html)
             self.assertIn("流程验证占位批注", html)
+            self.assertIn("source-highlight", html)
+            self.assertIn("The first passage explains the problem.", html)
 
     def test_mock_translation_mode_fills_placeholder(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

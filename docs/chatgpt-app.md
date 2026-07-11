@@ -111,7 +111,7 @@ $env:LRC_PUBLIC_BASE_URL = "https://orange-example.trycloudflare.com"
    - MCP server URL：把第 4 步的地址加上 `/mcp`，例如 `https://orange-example.trycloudflare.com/mcp`
    - 身份验证：选择 **未授权 / None**，不要选择 OAuth。
 
-6. 点击 Create。成功后，ChatGPT 应显示 7 个工具，包括 `start_reading_copy` 和 `render_reading_copy`。
+6. 点击 Create。成功后，ChatGPT 应显示 8 个工具，包括 `start_reading_copy`、`render_reading_copy` 和 `get_selected_passage_context`。
 
 如果没有显示工具，不要继续上传 PDF；先确认两个 PowerShell 窗口都没有报错，并再次打开 `/health` 测试链接。
 
@@ -126,7 +126,8 @@ $env:LRC_PUBLIC_BASE_URL = "https://orange-example.trycloudflare.com"
 请使用 Literature Reading Companion 为这个 PDF 生成带批注的阅读版。
 保留英文原文，不要全文翻译；右侧批注全部使用中文。
 每个正文段落都必须有对应批注。右侧主体必须是“逐段精读”，不是“这一页有什么作用”的摘要：请用通俗中文详细解释作者在这段真正说了什么、推理或证据如何成立、陌生术语是什么意思，以及它具体怎样接上前文并影响后文；让完全不了解这个领域的读者也能跟上。
-遇到公式时，请用 \( ... \) 或 \[ ... \] 写出关键公式，正确保留上下标，并解释每个重要符号、某一项变大时会发生什么、以及作者为什么需要这个公式。
+每段还要选择 1–3 句真正关键的原文句子、术语或公式，逐字复制到 focus_points 中，供左侧高亮。右侧要为每一处重点单独讲解，不能重复整段摘要。
+遇到公式时，请用 \( ... \) 或 \[ ... \] 写出关键公式，正确保留上下标，并解释每个重要符号、某一项变大时会发生什么、作者为什么需要这个公式，再给一个很小的数值例子。
 完成后请给我 HTML 和 DOCX 下载文件。
 ```
 
@@ -137,6 +138,8 @@ $env:LRC_PUBLIC_BASE_URL = "https://orange-example.trycloudflare.com"
 ```
 
 ChatGPT 会连续调用多个工具，所以处理一篇长论文需要一些时间。完成前不要关闭两个 PowerShell 窗口。最后它会给出 HTML 和 DOCX 的临时下载项。
+
+打开 HTML 后，左侧永远有原文；如果本次选择了全文翻译，原文下方紧接中文翻译，并可用页面顶端按钮切换显示方式。点击左侧彩色重点会展开右侧相应讲解。若有未标记句子仍看不懂，拖选该句并点击“复制所选句子的提问”，把内容粘贴回**同一个** ChatGPT 对话；ChatGPT 会调用 `get_selected_passage_context` 后继续解释这句话及其前后文。
 
 ## 文件与隐私规则
 

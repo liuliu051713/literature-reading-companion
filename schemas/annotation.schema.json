@@ -37,6 +37,34 @@
           "caveat": {
             "type": "string",
             "description": "A source-grounded limitation, ambiguity, or an explicit statement that no caveat is needed."
+          },
+          "focus_points": {
+            "type": "array",
+            "description": "Optional source quotations that should be highlighted in the original passage and taught in detail. Existing integrations may omit this field.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "quote": {
+                  "type": "string",
+                  "description": "An exact, non-empty sentence or short phrase from this anchor's source text."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["claim", "term", "mechanism", "evidence", "formula", "limitation"],
+                  "description": "Why this source span deserves attention."
+                },
+                "explanation": {
+                  "type": "string",
+                  "description": "A beginner-friendly teaching explanation of this exact source quote; formula points explain symbols, direction of change, and a simple numerical intuition."
+                },
+                "formula_latex": {
+                  "type": "string",
+                  "description": "For kind=formula only, an optional TeX representation of the source formula for correct HTML/DOCX math rendering."
+                }
+              },
+              "required": ["quote", "kind", "explanation"]
+            }
           }
         },
         "required": [
@@ -55,4 +83,3 @@
     "annotations"
   ]
 }
-

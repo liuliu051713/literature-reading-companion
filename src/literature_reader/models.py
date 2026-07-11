@@ -31,6 +31,22 @@ class PaperMap:
 
 
 @dataclass(frozen=True)
+class FocusPoint:
+    """A source quotation that deserves a close, reader-facing explanation.
+
+    ``quote`` is deliberately kept as exact source text instead of a character
+    offset.  PDF extraction is not stable enough across viewers to promise
+    offsets, while an exact quotation can be validated before it is rendered
+    and can be highlighted safely in both HTML and DOCX.
+    """
+
+    quote: str
+    kind: str
+    explanation: str
+    formula_latex: str | None = None
+
+
+@dataclass(frozen=True)
 class Annotation:
     anchor: str
     role: str
@@ -39,6 +55,7 @@ class Annotation:
     takeaway: str
     caveat: str
     translation: str | None = None
+    focus_points: tuple[FocusPoint, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

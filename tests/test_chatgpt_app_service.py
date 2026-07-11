@@ -13,6 +13,17 @@ DETAILED_EXPLANATION = (
     "这种解释把局部句子放回论文的推理链中，因此即使不熟悉研究领域，也能判断作者的结论依赖哪些前提。"
 )
 
+FOCUS_POINTS = [
+    {
+        "quote": "The first paragraph sets up the research problem.",
+        "kind": "claim",
+        "explanation": (
+            "这句不是泛泛地说文章有一个问题，而是明确告诉读者后续所有方法和贡献都要回应这个研究缺口。"
+            "把它标出来，读者就能在后文判断作者提出的方案是否真的解决了这个问题，而不是只增加了一个新术语。"
+        ),
+    }
+]
+
 
 class ChatGPTAppServiceTests(unittest.TestCase):
     def test_store_keeps_source_notes_aligned_and_renders_outputs(self) -> None:
@@ -55,6 +66,12 @@ class ChatGPTAppServiceTests(unittest.TestCase):
                             "explanation": DETAILED_EXPLANATION,
                             "takeaway": "不要只看一句话，要看它服务于什么论证目标。",
                             "caveat": "这是示例文本，不应外推为真实实证结论。",
+                            "focus_points": [
+                                {
+                                    **FOCUS_POINTS[0],
+                                    "quote": paragraph["text"],
+                                }
+                            ],
                         }
                         for paragraph in batch["paragraphs"]
                     ],
@@ -66,9 +83,10 @@ class ChatGPTAppServiceTests(unittest.TestCase):
             self.assertTrue(paths["html"].exists())
             self.assertTrue(paths["docx"].exists())
             html = paths["html"].read_text(encoding="utf-8")
-            self.assertIn("对应批注", html)
+            self.assertIn("原文与讲解一一对应", html)
             self.assertIn('id="P001"', html)
             self.assertIn("逐段精读", html)
+            self.assertIn("source-highlight", html)
 
     def test_store_rejects_short_page_summary_in_deep_mode(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -89,6 +107,7 @@ class ChatGPTAppServiceTests(unittest.TestCase):
                             "explanation": "本段作用：提出研究问题。",
                             "takeaway": "了解问题。",
                             "caveat": "这是示例。",
+                            "focus_points": [],
                         }
                     ],
                 )
@@ -113,9 +132,39 @@ class ChatGPTAppServiceTests(unittest.TestCase):
                             "explanation": "解释",
                             "takeaway": "要点",
                             "caveat": "提醒",
+                            "focus_points": [
+                                {
+                                    "quote": "A paragraph that needs a translated reading copy.",
+                                    "kind": "claim",
+                                    "explanation": "这句话只是测试材料的正文，因此它的用途是验证翻译模式会要求每个原文段落都有对应字段。"
+                                    "它没有提供真实研究结论，读者不应把这一句当作可外推的学术发现。",
+                                }
+                            ],
                         }
                     ],
                 )
+
+    def test_selected_sentence_returns_its_own_context(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = ReadingJobStore(Path(directory), batch_size=2)
+            started = store.create_from_bytes(
+                filename="paper.txt",
+                content=(
+                    b"Title\n\n"
+                    b"The model assigns a score to every case.\n\n"
+                    b"The score determines which case receives review."
+                ),
+                translation="none",
+            )
+            result = store.selected_passage_context(
+                started["job_id"],
+                "P001",
+                "assigns a score",
+            )
+
+        self.assertEqual(result["anchor"], "P001")
+        self.assertEqual(result["following_context"]["anchor"], "P002")
+        self.assertIn("不要只总结整段", result["instruction"])
 
 
 if __name__ == "__main__":

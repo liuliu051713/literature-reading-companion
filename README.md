@@ -16,6 +16,8 @@ It also includes a private **ChatGPT App / MCP developer-mode route**. In that r
 - Preserves stable paragraph anchors such as `P001` and source page numbers when available.
 - Supports two reading modes: original text with Chinese annotations, or original text with full Chinese translation and annotations.
 - Makes the substantive, beginner-friendly passage explanation the leading part of every annotation rather than a page-role summary.
+- Highlights 1–3 exact important source sentences, terms, or formulas in the left column and links each one to a separate right-side close-reading card.
+- Lets readers switch the HTML between original, Chinese translation, and original-plus-translation when full translation is requested; any unmarked selected sentence can be sent back to the active ChatGPT conversation for a source-context-aware explanation.
 - Renders model-marked formulae as browser-native MathML in HTML and editable Office Math in DOCX.
 - Produces an HTML reading copy with a source column and a corresponding annotation column.
 - Can also produce a DOCX reading copy.

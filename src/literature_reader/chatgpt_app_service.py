@@ -19,9 +19,14 @@ from typing import Any, Mapping, Sequence
 
 from .config import RunConfig
 from .extractors import SUPPORTED_SUFFIXES, extract_document
-from .models import Annotation, PaperMap, ReadingCopy, SourceDocument
+from .models import Annotation, FocusPoint, PaperMap, ReadingCopy, SourceDocument
 from .pipeline import write_outputs
-from .quality import AnnotationQualityError, validate_annotation_detail, validate_reading_copy
+from .quality import (
+    AnnotationQualityError,
+    validate_annotation_detail,
+    validate_focus_points,
+    validate_reading_copy,
+)
 
 
 class ReadingJobError(ValueError):
@@ -234,6 +239,13 @@ class ReadingJobStore:
                 if annotation.anchor in seen:
                     raise ReadingJobError(f"Duplicate paragraph anchor in this batch: {annotation.anchor}.")
                 seen.add(annotation.anchor)
+                paragraph = next(
+                    paragraph for paragraph in job.source.paragraphs if paragraph.anchor == annotation.anchor
+                )
+                try:
+                    validate_focus_points(annotation, paragraph.text, "deep")
+                except AnnotationQualityError as error:
+                    raise ReadingJobError(str(error)) from error
                 job.annotations[annotation.anchor] = annotation
                 saved.append(annotation.anchor)
 
@@ -252,6 +264,55 @@ class ReadingJobStore:
 
         with self._lock:
             return {"job_id": job_id, **self._progress_payload(self._require_job(job_id))}
+
+    def selected_passage_context(
+        self,
+        job_id: str,
+        anchor: str,
+        selected_quote: str,
+    ) -> dict[str, Any]:
+        """Return source-grounded context for a reader-selected source sentence.
+
+        ChatGPT, rather than the local server, writes the on-demand explanation
+        in the active conversation.  That preserves the subscription-based
+        workflow and keeps a provider key out of this local-first project.
+        """
+
+        with self._lock:
+            job = self._require_job(job_id)
+            paragraphs = job.source.paragraphs
+            index = next(
+                (position for position, paragraph in enumerate(paragraphs) if paragraph.anchor == anchor),
+                None,
+            )
+            if index is None:
+                raise ReadingJobError(f"Unknown paragraph anchor: {anchor}.")
+            quote = selected_quote.strip()
+            if len(quote) < 3:
+                raise ReadingJobError("Select at least three characters from one original paragraph.")
+            paragraph = paragraphs[index]
+            if _normalise_for_quote_match(quote) not in _normalise_for_quote_match(paragraph.text):
+                raise ReadingJobError(
+                    "The selected text must be copied from the specified source paragraph."
+                )
+            previous = paragraphs[index - 1] if index else None
+            following = paragraphs[index + 1] if index + 1 < len(paragraphs) else None
+            return {
+                "job_id": job.job_id,
+                "anchor": paragraph.anchor,
+                "section": paragraph.section,
+                "selected_quote": quote,
+                "paragraph": _paragraph_payload(paragraph),
+                "previous_context": _paragraph_payload(previous) if previous else None,
+                "following_context": _paragraph_payload(following) if following else None,
+                "paper_map": _paper_map_payload(job.paper_map),
+                "instruction": (
+                    "请直接解释读者选中的原文，不要只总结整段：先用白话说明这句话在说什么，"
+                    "再拆开术语、逻辑关系或公式；点明它和前后文怎样相连。若有公式，解释变量、"
+                    "变化方向，并给出一个很小的数字例子。请使用简体中文，并说明哪些内容是原文"
+                    "明确写出、哪些只是帮助理解的推断。"
+                ),
+            }
 
     def render(self, job_id: str, output_format: str) -> dict[str, Path]:
         """Render the fully validated reading copy and remember safe download paths."""
@@ -412,12 +473,45 @@ def _annotation_from_payload(
         takeaway=values["takeaway"],
         caveat=values["caveat"],
         translation=translation,
+        focus_points=_focus_points_from_payload(payload),
     )
     try:
         validate_annotation_detail(annotation, "deep")
     except AnnotationQualityError as error:
         raise ReadingJobError(str(error)) from error
     return annotation
+
+
+def _focus_points_from_payload(payload: Mapping[str, object]) -> tuple[FocusPoint, ...]:
+    raw_points = payload.get("focus_points", [])
+    if raw_points is None:
+        return ()
+    if not isinstance(raw_points, Sequence) or isinstance(raw_points, (str, bytes)):
+        raise ReadingJobError("Annotation field 'focus_points' must be an array.")
+    points: list[FocusPoint] = []
+    for raw_point in raw_points:
+        if not isinstance(raw_point, Mapping):
+            raise ReadingJobError("Every focus point must be an object.")
+        values: dict[str, str] = {}
+        for field_name in ("quote", "kind", "explanation"):
+            value = raw_point.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise ReadingJobError(f"Focus point field '{field_name}' cannot be empty.")
+            values[field_name] = value.strip()
+        formula_latex = raw_point.get("formula_latex")
+        if formula_latex is not None and not isinstance(formula_latex, str):
+            raise ReadingJobError("Focus point field 'formula_latex' must be a string when supplied.")
+        points.append(
+            FocusPoint(
+                quote=values["quote"],
+                kind=values["kind"],
+                explanation=values["explanation"],
+                formula_latex=formula_latex.strip()
+                if isinstance(formula_latex, str) and formula_latex.strip()
+                else None,
+            )
+        )
+    return tuple(points)
 
 
 def _annotation_instruction(translation: str) -> str:
@@ -434,6 +528,10 @@ def _annotation_instruction(translation: str) -> str:
         "先说明作者这段真正主张、定义或证明了什么，再用通俗语言拆开因果/推理步骤、解释陌生术语，并说清它为什么影响后续论证。"
         "不要在 explanation 中写“作用：”“衔接：”“要点：”式概要，也不要只改写原句。takeaway 用一句白话总结读者此刻应理解的结论；"
         "caveat 只写原文支持的边界、不确定性，或明确没有额外边界。\n"
+        "此外，每段必须给出 1–3 个 focus_points，供左侧原文逐句/逐段高亮。每个 quote 必须逐字复制本段中的一句关键句或短语，"
+        "不可改写、不可引用别段、不可整段照搬；kind 只能是 claim、term、mechanism、evidence、formula、limitation 之一。"
+        "每个 focus-point explanation 要单独讲清这句话/短语，不得重复整段摘要。若含公式，必须有 kind=formula，填写 formula_latex，"
+        "解释符号、变化方向，并给一个很小的数字例子帮助零基础读者理解。\n"
         "若段落含公式或符号，必须在 explanation 中用 \\( ... \\) 重写关键公式（独立公式可用 \\[ ... \\]），例如 \\(R_{i,t}=\\Delta^{ad}_{i,t}C_i\\)。"
         "随后解释每个符号代表什么、某一项变大时结论如何变化，以及作者为什么需要这个公式；不要把下标、上标写成普通散乱字符。"
         "保留必要的英文术语、变量名和原文事实边界，不得编造论文没有说明的事实。\n"
@@ -483,6 +581,10 @@ def _safe_upload_name(filename: str | None) -> str:
 def _preview(text: str, limit: int = 220) -> str:
     compact = " ".join(text.split())
     return compact if len(compact) <= limit else f"{compact[:limit - 1]}…"
+
+
+def _normalise_for_quote_match(value: str) -> str:
+    return " ".join(value.split())
 
 
 def _utcnow() -> datetime:

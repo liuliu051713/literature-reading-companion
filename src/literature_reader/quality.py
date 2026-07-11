@@ -6,7 +6,7 @@ from collections import Counter
 import re
 
 from .config import RunConfig
-from .models import Annotation, ReadingCopy
+from .models import Annotation, FocusPoint, ReadingCopy
 
 
 class AnnotationQualityError(ValueError):
@@ -14,7 +14,9 @@ class AnnotationQualityError(ValueError):
 
 
 _DEEP_EXPLANATION_MINIMUM = 100
+_FOCUS_EXPLANATION_MINIMUM = 55
 _NAVIGATION_ONLY_PREFIX = re.compile(r"^(?:本段|该段|这一段|这里)?(?:作用|衔接|要点|边界)[：:]")
+_FOCUS_KINDS = {"claim", "term", "mechanism", "evidence", "formula", "limitation"}
 
 
 def validate_annotation_detail(annotation: Annotation, annotation_depth: str = "deep") -> None:
@@ -45,6 +47,65 @@ def validate_annotation_detail(annotation: Annotation, annotation_depth: str = "
         raise AnnotationQualityError(
             f"{annotation.anchor} explanation needs at least two connected sentences or clauses in deep mode."
         )
+
+
+def validate_focus_points(
+    annotation: Annotation,
+    source_text: str,
+    annotation_depth: str = "deep",
+) -> None:
+    """Make source highlighting useful and safe instead of decorative.
+
+    The source quote must genuinely come from the anchored paragraph.  This
+    prevents a model from attaching a polished explanation to a similar but
+    different sentence, which would be particularly misleading in a formula or
+    methods section.
+    """
+
+    if annotation_depth != "deep":
+        return
+    if not annotation.focus_points:
+        raise AnnotationQualityError(
+            f"{annotation.anchor} needs at least one focus point for the source-side highlight."
+        )
+    normalised_source = _normalise_for_quote_match(source_text)
+    seen_quotes: set[str] = set()
+    for point in annotation.focus_points:
+        _validate_focus_point(annotation.anchor, point, normalised_source, seen_quotes)
+
+
+def _validate_focus_point(
+    anchor: str,
+    point: FocusPoint,
+    normalised_source: str,
+    seen_quotes: set[str],
+) -> None:
+    quote = _normalise_for_quote_match(point.quote)
+    if len(quote) < 3:
+        raise AnnotationQualityError(f"{anchor} focus-point quote is too short to locate safely.")
+    if quote not in normalised_source:
+        raise AnnotationQualityError(
+            f"{anchor} focus-point quote must be copied from its own source paragraph."
+        )
+    if quote in seen_quotes:
+        raise AnnotationQualityError(f"{anchor} contains a duplicate focus-point quote.")
+    seen_quotes.add(quote)
+    if point.kind not in _FOCUS_KINDS:
+        allowed = ", ".join(sorted(_FOCUS_KINDS))
+        raise AnnotationQualityError(f"{anchor} focus-point kind must be one of: {allowed}.")
+    explanation = re.sub(r"\s+", "", point.explanation)
+    if len(explanation) < _FOCUS_EXPLANATION_MINIMUM:
+        raise AnnotationQualityError(
+            f"{anchor} focus-point explanation is too short for a beginner-facing close reading."
+        )
+    if point.kind == "formula" and not (point.formula_latex or "").strip():
+        raise AnnotationQualityError(
+            f"{anchor} formula focus point needs formula_latex for accessible math rendering."
+        )
+
+
+def _normalise_for_quote_match(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def validate_reading_copy(reading_copy: ReadingCopy, config: RunConfig) -> tuple[str, ...]:
@@ -87,6 +148,12 @@ def validate_reading_copy(reading_copy: ReadingCopy, config: RunConfig) -> tuple
             validate_annotation_detail(annotation, config.annotation_depth)
         except AnnotationQualityError as error:
             errors.append(str(error))
+        source = next((paragraph for paragraph in reading_copy.source.paragraphs if paragraph.anchor == annotation.anchor), None)
+        if source is not None:
+            try:
+                validate_focus_points(annotation, source.text, config.annotation_depth)
+            except AnnotationQualityError as error:
+                errors.append(str(error))
 
     if errors:
         raise AnnotationQualityError(" ".join(errors))

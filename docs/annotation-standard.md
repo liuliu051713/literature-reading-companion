@@ -15,6 +15,7 @@ source text and its stable anchor remain unchanged.
 | takeaway | State the plain-language conclusion the reader should retain after understanding the passage. |
 | caveat | State a source-grounded ambiguity, boundary, or explicitly say that no additional caveat is needed. |
 | translation | A faithful Chinese translation only when full-translation mode is selected; otherwise an empty field. |
+| focus_points | In deep mode, provide 1–3 exact important sentences or short phrases from the same source paragraph. Each point supplies a left-side highlight and a separate beginner-facing close-reading explanation. This optional, backward-compatible field never changes the stable paragraph anchor. |
 
 ## Non-negotiable checks
 
@@ -24,6 +25,7 @@ source text and its stable anchor remain unchanged.
 4. Notes must distinguish author claims from the reader-facing explanation.
 5. Unsupported interpretation must be placed in caveat or omitted.
 6. In deep mode, a short page-role summary cannot be saved as an explanation.
+7. Every focus-point quote must be copied from its own anchored source paragraph; unmatched or duplicate quotes are rejected instead of silently rendered in the wrong place.
 
 ## Formula and notation markup
 
@@ -41,6 +43,27 @@ The explanation must also say what each important symbol means and why the
 formula is being introduced. Complex PDF equation reconstruction is still
 limited by the text extracted from the source PDF, so the original paper
 remains authoritative.
+
+For a formula focus point, additionally supply `formula_latex` without the
+delimiters, for example `R_{i,t}=\Delta^{ad}_{i,t}C_i`. Its close-reading
+explanation must explain the symbols, what changes when a term increases or
+decreases, and one small numerical example. This turns a displayed equation
+into an idea that a reader new to the field can reason about.
+
+## Source-side stopping points
+
+The HTML reading copy is deliberately original-first. It keeps the original
+paragraph on the left and, when full translation is selected, places the
+Chinese translation immediately below it. It can switch among original only,
+translation only, and the paired view.
+
+Important source quotations are highlighted in the left column. Selecting one
+opens its matching right-side teaching card. Readers can also select any other
+sentence in the left column and copy a prefilled follow-up request for the
+current ChatGPT conversation; the App then retrieves that sentence's paragraph
+and immediate context before explaining it. A standalone downloaded HTML file
+cannot itself call the ChatGPT model, so the final on-demand explanation is
+written in the ChatGPT conversation rather than hidden in the browser.
 
 ## What good looks like
 
