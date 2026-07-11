@@ -85,7 +85,20 @@ https://orange-example.trycloudflare.com/health
 
 如果看到包含 `"status":"ok"` 的小段文字，说明“ChatGPT → 隧道 → 你的电脑”这条路已经通了。
 
-## 第 5 步：在 ChatGPT 中添加你的开发者 App
+## 第 5 步：让本机服务信任这一次的隧道地址
+
+Cloudflare 会保留随机公网地址作为请求的 Host。为了让服务只接受这一次的准确地址，需要回到**第一个** PowerShell 窗口，按 `Ctrl+C` 停止 Python 服务；第二个运行 `cloudflared` 的窗口保持不动。
+
+将下面命令中的地址换成你刚才实际看到的地址，再运行：
+
+```powershell
+$env:LRC_PUBLIC_BASE_URL = "https://orange-example.trycloudflare.com"
+.\.venv\Scripts\python.exe -m literature_reader.chatgpt_mcp
+```
+
+重新看到 `Uvicorn running on http://127.0.0.1:8000` 后，再继续下一步。每次重开 Quick Tunnel，地址都会变化，因此也需要重复本小节。
+
+## 第 6 步：在 ChatGPT 中添加你的开发者 App
 
 1. 打开 ChatGPT 网页版。
 2. 进入 **Settings（设置）→ Security and login（安全与登录）**，开启 **Developer mode（开发者模式）**。
@@ -96,12 +109,13 @@ https://orange-example.trycloudflare.com/health
    - Name：`Literature Reading Companion`
    - Description：`上传论文后生成原文与中文深度批注一一对应的阅读版，并可选择完整翻译。`
    - MCP server URL：把第 4 步的地址加上 `/mcp`，例如 `https://orange-example.trycloudflare.com/mcp`
+   - 身份验证：选择 **未授权 / None**，不要选择 OAuth。
 
 6. 点击 Create。成功后，ChatGPT 应显示 7 个工具，包括 `start_reading_copy` 和 `render_reading_copy`。
 
 如果没有显示工具，不要继续上传 PDF；先确认两个 PowerShell 窗口都没有报错，并再次打开 `/health` 测试链接。
 
-## 第 6 步：真正测试一篇论文
+## 第 7 步：真正测试一篇论文
 
 1. 新建一个 ChatGPT 对话。
 2. 点击输入框旁的 `+`，选择 **More**，选择刚创建的 `Literature Reading Companion`。
@@ -155,7 +169,9 @@ python -m literature_reader annotate ... --provider openai
 2. 第二个窗口中的 `cloudflared` 仍在运行；
 3. 浏览器能打开 `https://你的随机地址/health`；
 4. ChatGPT 中填写的是 `https://你的随机地址/mcp`，不是裸地址；
-5. 隧道每次重新启动会产生新地址，需要在 ChatGPT App 设置中更新 URL。
+5. 身份验证选的是 **未授权 / None**，不是 OAuth；
+6. 启动 Python 服务前，已经将 `LRC_PUBLIC_BASE_URL` 设置为当前随机地址；
+7. 隧道每次重新启动会产生新地址，需要在 ChatGPT App 设置中更新 URL，并在第一个窗口重新设置 `LRC_PUBLIC_BASE_URL` 后重启服务。
 
 ### 最终文件下载失败
 
