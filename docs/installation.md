@@ -62,3 +62,16 @@ OpenAI or Gemini provider is selected, the extracted text is sent to the
 provider selected by the user. Use only documents you are permitted to process,
 and do not commit papers, keys, or generated reading copies unless you have the
 right to share them.
+
+## ChatGPT web App / MCP route
+
+If you want ChatGPT's web conversation to do the reading rather than calling a
+model API from this command-line program, install the optional MCP server:
+
+    pip install -e ".[chatgpt-app]"
+    python -m literature_reader.chatgpt_mcp
+
+This route deliberately does not read `OPENAI_API_KEY`. It is a private
+developer-mode workflow and still needs a public HTTPS tunnel or deployment so
+that ChatGPT can reach the local MCP endpoint. For the complete beginner-facing
+Windows setup and privacy limits, see [chatgpt-app.md](chatgpt-app.md).

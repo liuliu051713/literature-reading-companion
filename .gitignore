@@ -15,9 +15,9 @@ dist/
 output/
 *.reading.html
 *.reading.docx
+.lrc-chatgpt-jobs/
 
 # Editors and operating systems
 .DS_Store
 .idea/
 .vscode/
-

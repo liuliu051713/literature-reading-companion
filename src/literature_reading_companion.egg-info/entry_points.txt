@@ -1,0 +1,2 @@
+[console_scripts]
+paper-reader = literature_reader.cli:main

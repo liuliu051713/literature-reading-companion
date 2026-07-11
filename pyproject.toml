@@ -12,7 +12,7 @@ license = {file = "LICENSE"}
 authors = [
   {name = "liuliu051713"}
 ]
-keywords = ["literature review", "academic reading", "annotations", "openai", "gemini"]
+keywords = ["literature review", "academic reading", "annotations", "openai", "gemini", "mcp", "chatgpt"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Science/Research",
@@ -30,6 +30,7 @@ dependencies = [
 [project.optional-dependencies]
 openai = ["openai>=1.0"]
 gemini = ["google-genai>=1.0"]
+chatgpt-app = ["mcp>=1.27,<2"]
 dev = []
 
 [project.scripts]

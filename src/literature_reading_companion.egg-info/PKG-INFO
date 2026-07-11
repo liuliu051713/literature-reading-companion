@@ -1,3 +1,52 @@
+Metadata-Version: 2.4
+Name: literature-reading-companion
+Version: 0.1.0
+Summary: Local-first, provider-agnostic academic literature reading companion
+Author: liuliu051713
+License: MIT License
+        
+        Copyright (c) 2026 liuliu051713
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Keywords: literature review,academic reading,annotations,openai,gemini,mcp,chatgpt
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pypdf>=5.0
+Requires-Dist: python-docx>=1.1
+Provides-Extra: openai
+Requires-Dist: openai>=1.0; extra == "openai"
+Provides-Extra: gemini
+Requires-Dist: google-genai>=1.0; extra == "gemini"
+Provides-Extra: chatgpt-app
+Requires-Dist: mcp<2,>=1.27; extra == "chatgpt-app"
+Provides-Extra: dev
+Dynamic: license-file
+
 # Literature Reading Companion
 
 **A local-first, model-agnostic tool for turning an academic paper into an annotated reading copy.**
@@ -8,8 +57,6 @@ Literature Reading Companion does not treat a paper as a translation task. It fi
 
 The project is designed to work with more than one model provider. The first release includes adapters for OpenAI and Gemini, plus an offline `mock` provider for testing the workflow without sending a document to any model.
 
-It also includes a private **ChatGPT App / MCP developer-mode route**. In that route, ChatGPT performs the reading work in its own conversation and the local MCP service only receives the authorized file, validates paragraph anchors, and renders HTML/DOCX. It does not use this repository's OpenAI API provider or require `OPENAI_API_KEY`.
-
 ## What the first release does
 
 - Reads text-based PDF, DOCX, or TXT files locally.
@@ -18,7 +65,6 @@ It also includes a private **ChatGPT App / MCP developer-mode route**. In that r
 - Produces an HTML reading copy with a source column and a corresponding annotation column.
 - Can also produce a DOCX reading copy.
 - Checks that every rendered annotation has a valid source anchor and that no expected anchor is missing.
-- Can be connected to ChatGPT developer mode so a user can upload a paper in ChatGPT and receive downloadable HTML/DOCX output without using this project's OpenAI API integration.
 
 > Scanned PDFs, OCR correction, complex multi-column reconstruction, batch processing, and collaborative reading are intentionally outside v0.1.
 
@@ -74,17 +120,6 @@ paper-reader annotate paper.docx --provider gemini --translation none --format d
 
 See [docs/installation.md](docs/installation.md) for Windows instructions and [docs/annotation-standard.md](docs/annotation-standard.md) for the annotation contract.
 
-## Use from ChatGPT on the web (no model API key)
-
-For a private developer-mode test, install the MCP extra and run the local server:
-
-```bash
-pip install -e ".[chatgpt-app]"
-python -m literature_reader.chatgpt_mcp
-```
-
-ChatGPT needs a public HTTPS MCP endpoint, so a temporary HTTPS tunnel or a hosted deployment is still required. The detailed Chinese guide explains the exact Windows steps, privacy boundaries, the developer-mode connection, and the upload prompt: [docs/chatgpt-app.md](docs/chatgpt-app.md).
-
 ## Design principles
 
 - **Context before commentary.** Each note must relate a passage to the paper's overall argument and its immediate neighbours.
@@ -92,7 +127,6 @@ ChatGPT needs a public HTTPS MCP endpoint, so a temporary HTTPS tunnel or a host
 - **Clear separation of claims.** The model must distinguish an author's claim from a reading aid or a caveat.
 - **Local-first privacy.** The repository does not operate a document-storage service. A selected provider receives text only when the user explicitly runs that provider.
 - **Provider independence.** The paper model, annotation schema, quality checks, and renderers are not tied to a single AI vendor.
-- **No hidden model call in the ChatGPT App route.** The MCP server does not contain an OpenAI API key; ChatGPT writes the reading map and notes through its active conversation.
 
 ## Repository layout
 

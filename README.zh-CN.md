@@ -16,6 +16,19 @@
 
 第一版只保证段落级锚点。扫描型 PDF、复杂双栏版式、图表/公式独立批注、批量处理和协作阅读会在后续版本实现。
 
+## 也可以在 ChatGPT 网页版中运行
+
+仓库现在包含一个 **ChatGPT App / MCP 开发者模式测试版**。它不是把 PDF 再发给 OpenAI API，而是由你正在使用的 ChatGPT 对话完成阅读理解；本机 MCP 服务只负责临时接收文件、保存与原文段落一一对应的批注，并输出 HTML/DOCX。
+
+因此，这条路线不需要设置 `OPENAI_API_KEY`，也不会消耗本仓库 OpenAI provider 的 API 额度。它仍需要你本机临时运行服务，并通过 HTTPS 隧道让 ChatGPT 连接。
+
+完整、按 Windows PowerShell 写的操作说明见：[docs/chatgpt-app.md](docs/chatgpt-app.md)。其中包含：
+
+- 如何安装 MCP 组件；
+- 如何开启 ChatGPT Developer mode；
+- 如何将 PDF 拖进 ChatGPT 后生成中文深度批注；
+- 临时文件、隐私和公开发布前必须补上的安全措施。
+
 ## 快速体验
 
     git clone https://github.com/liuliu051713/literature-reading-companion.git
