@@ -366,9 +366,10 @@ def _render_focus_points(annotation: Annotation, anchor: str) -> str:
         kind_label = _FOCUS_LABELS.get(point.kind, "重点")
         formula = ""
         if point.formula_latex:
+            formula_markup = render_html_markup("\\[" + point.formula_latex + "\\]")
             formula = (
                 '<section class="formula-lesson"><div class="formula-label">把原文公式写清楚</div>'
-                f'<div>{render_html_markup(r"\\[" + point.formula_latex + r"\\]")}</div></section>'
+                f'<div>{formula_markup}</div></section>'
             )
         cards.append(
             f'''<details class="focus-card" id="{escape(_focus_id(anchor, index))}">
