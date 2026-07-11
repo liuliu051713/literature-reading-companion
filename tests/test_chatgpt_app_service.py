@@ -7,6 +7,13 @@ from pathlib import Path
 from literature_reader.chatgpt_app_service import ReadingJobError, ReadingJobStore
 
 
+DETAILED_EXPLANATION = (
+    "作者不是只提出一个阅读辅助工具，而是在说明为什么段落级批注需要和全文论证一起理解。"
+    "换句话说，读者要先知道这里解决的具体问题，再看它如何为下一段的贡献说明铺路。"
+    "这种解释把局部句子放回论文的推理链中，因此即使不熟悉研究领域，也能判断作者的结论依赖哪些前提。"
+)
+
+
 class ChatGPTAppServiceTests(unittest.TestCase):
     def test_store_keeps_source_notes_aligned_and_renders_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -35,6 +42,9 @@ class ChatGPTAppServiceTests(unittest.TestCase):
 
             for batch_index in range(started["batch_count"]):
                 batch = store.annotation_batch(job_id, batch_index)
+                self.assertIn("paper_map", batch)
+                self.assertIn("surrounding_context", batch)
+                self.assertIn("零基础", batch["instruction"])
                 store.save_annotations(
                     job_id,
                     [
@@ -42,7 +52,7 @@ class ChatGPTAppServiceTests(unittest.TestCase):
                             "anchor": paragraph["anchor"],
                             "role": "论证中的关键步骤",
                             "context": "承接前文并为后文的主张提供基础。",
-                            "explanation": "它说明作者为什么要提出这个阅读辅助方案。",
+                            "explanation": DETAILED_EXPLANATION,
                             "takeaway": "不要只看一句话，要看它服务于什么论证目标。",
                             "caveat": "这是示例文本，不应外推为真实实证结论。",
                         }
@@ -58,6 +68,30 @@ class ChatGPTAppServiceTests(unittest.TestCase):
             html = paths["html"].read_text(encoding="utf-8")
             self.assertIn("对应批注", html)
             self.assertIn('id="P001"', html)
+            self.assertIn("逐段精读", html)
+
+    def test_store_rejects_short_page_summary_in_deep_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = ReadingJobStore(Path(directory), batch_size=1)
+            started = store.create_from_bytes(
+                filename="paper.txt",
+                content=b"Title\n\nA short paragraph.",
+                translation="none",
+            )
+            with self.assertRaisesRegex(ReadingJobError, "too short for deep reading"):
+                store.save_annotations(
+                    started["job_id"],
+                    [
+                        {
+                            "anchor": "P001",
+                            "role": "提出问题。",
+                            "context": "承接前文并引出后文。",
+                            "explanation": "本段作用：提出研究问题。",
+                            "takeaway": "了解问题。",
+                            "caveat": "这是示例。",
+                        }
+                    ],
+                )
 
     def test_full_translation_requires_translation_for_every_annotation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

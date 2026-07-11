@@ -56,8 +56,10 @@ class MockProvider(ModelProvider):
                     role="流程验证占位批注",
                     context=context,
                     explanation=(
-                        "mock 模式用于确认该原文段落可以被提取、编号、核对并排版；"
-                        "它不声称解释了作者的真实含义。"
+                        "mock 模式用于确认该原文段落可以被提取、编号、核对并排版。"
+                        "它不会阅读或推断作者的真实论证，因此这里不能当作正文含义、术语、"
+                        "证据或公式的解释。这个占位批注只用于离线验证锚点和输出样式；"
+                        "如需能帮助读懂论文的逐段中文精读，请选择 OpenAI、Gemini 或 ChatGPT App 路线后重新生成。"
                     ),
                     takeaway="如需真正帮助理解论文，请配置 OpenAI 或 Gemini 后重新生成。",
                     caveat="离线 mock 模式不生成任何实质性的学术解释。",

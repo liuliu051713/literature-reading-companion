@@ -1,24 +1,38 @@
-"""DOCX renderer using a two-column table to preserve source-note correspondence."""
+"""DOCX renderer with source-linked Chinese deep-reading notes.
+
+The document intentionally keeps every note in the same table row as its
+source anchor.  Within the note column, the substantive explanation is shown
+before the shorter navigation fields so the result reads like a companion, not
+like a page-by-page outline.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from docx import Document
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Pt
 
+from ..math_markup import append_docx_markup
 from ..models import Annotation, ReadingCopy
 
 
+_BODY_FONT = "Aptos"
+_CJK_FONT = "Microsoft YaHei"
+
+
 def render_docx(reading_copy: ReadingCopy, path: str | Path) -> Path:
+    """Write a two-column DOCX with editable Office Math where markup exists."""
+
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     document = Document()
     document.core_properties.title = f"{reading_copy.source.title} — 带批注的阅读版"
-    normal = document.styles["Normal"]
-    normal.font.name = "Aptos"
-    normal.font.size = Pt(10.5)
+    _configure_document_fonts(document)
 
     document.add_heading(reading_copy.source.title, level=0)
     document.add_paragraph(f"带批注的阅读版 · 原始文件：{reading_copy.source.source_path.name}")
@@ -32,8 +46,8 @@ def render_docx(reading_copy: ReadingCopy, path: str | Path) -> Path:
     table = document.add_table(rows=1, cols=2)
     table.style = "Table Grid"
     table.autofit = True
-    table.rows[0].cells[0].text = "原文"
-    table.rows[0].cells[1].text = "阅读批注"
+    _write_table_header(table.rows[0].cells[0], "原文")
+    _write_table_header(table.rows[0].cells[1], "中文精读批注")
     annotation_by_anchor = {annotation.anchor: annotation for annotation in reading_copy.annotations}
 
     for paragraph in reading_copy.source.paragraphs:
@@ -41,48 +55,121 @@ def render_docx(reading_copy: ReadingCopy, path: str | Path) -> Path:
         source_cell, note_cell = row.cells
         source_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
         note_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
-        _write_source_cell(source_cell, paragraph.anchor, paragraph.text, paragraph.section, paragraph.page_number, annotation_by_anchor[paragraph.anchor])
+        _write_source_cell(
+            source_cell,
+            paragraph.anchor,
+            paragraph.text,
+            paragraph.section,
+            paragraph.page_number,
+            annotation_by_anchor[paragraph.anchor],
+        )
         _write_note_cell(note_cell, annotation_by_anchor[paragraph.anchor])
 
     if reading_copy.warnings:
         document.add_heading("提示", level=1)
         for warning in reading_copy.warnings:
-            document.add_paragraph(warning, style="List Bullet")
+            paragraph = document.add_paragraph(style="List Bullet")
+            append_docx_markup(paragraph, warning)
 
     document.save(str(destination))
     return destination
 
 
+def _configure_document_fonts(document: Document) -> None:
+    normal = document.styles["Normal"]
+    normal.font.name = _BODY_FONT
+    normal.font.size = Pt(10.5)
+    _set_east_asia_font(normal, _CJK_FONT)
+    for style_name in ("Title", "Heading 1", "Heading 2", "Heading 3"):
+        style = document.styles[style_name]
+        _set_east_asia_font(style, _CJK_FONT)
+
+
+def _set_east_asia_font(style: Any, font_name: str) -> None:
+    properties = style.element.get_or_add_rPr()
+    fonts = properties.rFonts
+    if fonts is None:
+        fonts = OxmlElement("w:rFonts")
+        properties.insert(0, fonts)
+    fonts.set(qn("w:eastAsia"), font_name)
+
+
+def _write_table_header(cell: Any, text: str) -> None:
+    paragraph = cell.paragraphs[0]
+    run = paragraph.add_run(text)
+    run.bold = True
+    _set_run_font(run, size=10.5)
+
+
 def _add_labeled_paragraph(document: Document, label: str, value: str) -> None:
     paragraph = document.add_paragraph()
-    paragraph.add_run(f"{label}: ").bold = True
-    paragraph.add_run(value)
+    label_run = paragraph.add_run(f"{label}: ")
+    label_run.bold = True
+    _set_run_font(label_run)
+    append_docx_markup(paragraph, value)
 
 
-def _write_source_cell(cell, anchor: str, text: str, section: str | None, page_number: int | None, annotation: Annotation) -> None:
+def _write_source_cell(
+    cell: Any,
+    anchor: str,
+    text: str,
+    section: str | None,
+    page_number: int | None,
+    annotation: Annotation,
+) -> None:
     paragraph = cell.paragraphs[0]
-    paragraph.add_run(f"[{anchor}] ").bold = True
+    anchor_run = paragraph.add_run(f"[{anchor}] ")
+    anchor_run.bold = True
+    _set_run_font(anchor_run)
     if section:
-        paragraph.add_run(f"{section} · ").italic = True
+        section_run = paragraph.add_run(f"{section} · ")
+        section_run.italic = True
+        _set_run_font(section_run)
     if page_number:
-        paragraph.add_run(f"page {page_number}")
-    cell.add_paragraph(text)
+        page_run = paragraph.add_run(f"page {page_number}")
+        _set_run_font(page_run)
+
+    source = cell.add_paragraph()
+    append_docx_markup(source, text)
     if annotation.translation:
         translation = cell.add_paragraph()
-        translation.add_run("中文翻译：").bold = True
-        translation.add_run(annotation.translation)
+        translation_label = translation.add_run("中文翻译：")
+        translation_label.bold = True
+        _set_run_font(translation_label)
+        append_docx_markup(translation, annotation.translation)
 
 
-def _write_note_cell(cell, annotation: Annotation) -> None:
-    cell.paragraphs[0].add_run(f"[{annotation.anchor}] 批注").bold = True
-    fields = (
-        ("段落作用", annotation.role),
-        ("上下文关系", annotation.context),
-        ("阅读解释", annotation.explanation),
-        ("阅读要点", annotation.takeaway),
-        ("边界与提醒", annotation.caveat),
-    )
-    for label, value in fields:
-        paragraph = cell.add_paragraph()
-        paragraph.add_run(f"{label}: ").bold = True
-        paragraph.add_run(value)
+def _write_note_cell(cell: Any, annotation: Annotation) -> None:
+    header = cell.paragraphs[0]
+    header_run = header.add_run(f"[{annotation.anchor}] 中文精读")
+    header_run.bold = True
+    _set_run_font(header_run)
+
+    _write_note_paragraph(cell, "逐段精读", annotation.explanation, lead=True)
+    _write_note_paragraph(cell, "这段放在全文中的位置", annotation.role)
+    _write_note_paragraph(cell, "它怎样接上前后文", annotation.context)
+    _write_note_paragraph(cell, "读完应真正理解什么", annotation.takeaway)
+    _write_note_paragraph(cell, "阅读边界", annotation.caveat)
+
+
+def _write_note_paragraph(cell: Any, label: str, value: str, *, lead: bool = False) -> None:
+    paragraph = cell.add_paragraph()
+    label_run = paragraph.add_run(f"{label}：")
+    label_run.bold = True
+    _set_run_font(label_run, size=10.5 if lead else 9.5)
+    if lead:
+        paragraph.paragraph_format.space_before = Pt(5)
+        paragraph.paragraph_format.space_after = Pt(6)
+    append_docx_markup(paragraph, value)
+
+
+def _set_run_font(run: Any, *, size: float | None = None) -> None:
+    run.font.name = _BODY_FONT
+    if size is not None:
+        run.font.size = Pt(size)
+    properties = run._element.get_or_add_rPr()
+    fonts = properties.rFonts
+    if fonts is None:
+        fonts = OxmlElement("w:rFonts")
+        properties.insert(0, fonts)
+    fonts.set(qn("w:eastAsia"), _CJK_FONT)

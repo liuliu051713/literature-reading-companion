@@ -15,15 +15,26 @@ PAPER_MAP_SYSTEM_PROMPT = (
 )
 
 ANNOTATION_SYSTEM_PROMPT = (
-    "You are creating source-linked annotations for an academic paper. An annotation is "
-    "not a paraphrase. For every requested anchor, explain: (1) the rhetorical role of "
-    "the passage, (2) how it connects to the previous/next argument or paper-level map, "
-    "(3) the substantive meaning a reader needs, and (4) a short takeaway. State "
-    "uncertainty or missing evidence in caveat rather than inventing it. Keep author "
-    "claims and your interpretation separate. Return only JSON matching the requested schema. "
-    "Write role, context, explanation, takeaway, caveat, and any other reader-facing "
-    "description in Simplified Chinese. Preserve source anchors exactly. When translation "
-    "is requested, write a faithful Simplified Chinese translation."
+    "You are creating source-linked annotations for an academic paper. The purpose is to "
+    "help a reader who is new to the field understand the actual passage, not to label the "
+    "function of a page. For every requested anchor, write a compact navigation note in "
+    "role and context, but make explanation the main teaching text: use 2–4 connected "
+    "Simplified-Chinese sentences (normally at least 100 non-whitespace characters) to "
+    "state what the author is saying, unpack the causal or logical steps, define unfamiliar "
+    "terms in plain language, and explain why the point matters for the next claim. Do not "
+    "write an outline such as 'this paragraph introduces…' in explanation. Explain the "
+    "substance instead. Context must name the concrete idea inherited from the supplied "
+    "previous passage and the question, method, result, or claim prepared for the following "
+    "passage; do not use empty phrases such as 'it connects the previous and next text'. "
+    "If the source contains a formula, reproduce the key formula or notation in explanation "
+    "using \\( ... \\) for inline math or \\[ ... \\] for a displayed formula, for example "
+    "\\(R_{i,t}=\\Delta^{ad}_{i,t}C_i\\), then explain each symbol and what changes when a "
+    "term increases. Use only source-supported meaning. State uncertainty or missing "
+    "evidence in caveat rather than inventing it, and distinguish author claims from your "
+    "reader-facing explanation. Return only JSON matching the requested schema. Write role, "
+    "context, explanation, takeaway, caveat, and any other reader-facing description in "
+    "Simplified Chinese. Preserve source anchors exactly. When translation is requested, "
+    "write a faithful Simplified Chinese translation."
 )
 
 
@@ -67,6 +78,17 @@ def build_annotation_prompt(
         )
     current = "\n\n".join(current_blocks)
     return (
+        "The output is a deep-reading companion, not page summaries.\n"
+        "For each anchor, use this field contract:\n"
+        "- role: one concise sentence about where this passage sits in the argument.\n"
+        "- context: identify the specific prior idea it uses and the specific next question or claim it enables.\n"
+        "- explanation: 2–4 connected Simplified-Chinese sentences, normally at least 100 non-whitespace "
+        "characters. Explain the actual content for a beginner: what the author means, how the reasoning works, "
+        "and why it matters. Do not make explanation a list of 'role / connection / key point'.\n"
+        "- takeaway: one plain-language conclusion the reader can carry forward.\n"
+        "- caveat: only a source-grounded boundary, uncertainty, or an explicit statement that no extra caveat is needed.\n"
+        "When a formula or notation appears, use \\( ... \\) for inline math or \\[ ... \\] for displayed math; "
+        "write the key notation faithfully and explain its symbols in prose.\n\n"
         "Paper map:\n"
         f"Title: {paper_map.title}\n"
         f"Research question: {paper_map.research_question}\n"

@@ -15,6 +15,8 @@ It also includes a private **ChatGPT App / MCP developer-mode route**. In that r
 - Reads text-based PDF, DOCX, or TXT files locally.
 - Preserves stable paragraph anchors such as `P001` and source page numbers when available.
 - Supports two reading modes: original text with Chinese annotations, or original text with full Chinese translation and annotations.
+- Makes the substantive, beginner-friendly passage explanation the leading part of every annotation rather than a page-role summary.
+- Renders model-marked formulae as browser-native MathML in HTML and editable Office Math in DOCX.
 - Produces an HTML reading copy with a source column and a corresponding annotation column.
 - Can also produce a DOCX reading copy.
 - Checks that every rendered annotation has a valid source anchor and that no expected anchor is missing.
@@ -87,7 +89,7 @@ ChatGPT needs a public HTTPS MCP endpoint, so a temporary HTTPS tunnel or a host
 
 ## Design principles
 
-- **Context before commentary.** Each note must relate a passage to the paper's overall argument and its immediate neighbours.
+- **Context before commentary.** Each note must explain the passage itself for a reader new to the field, then relate it to the paper's overall argument and its immediate neighbours.
 - **Traceability.** In v0.1, notes are rendered only against a stable paragraph anchor; the tool does not output detached commentary. Figure, table, and formula anchors are planned extensions.
 - **Clear separation of claims.** The model must distinguish an author's claim from a reading aid or a caveat.
 - **Local-first privacy.** The repository does not operate a document-storage service. A selected provider receives text only when the user explicitly runs that provider.
