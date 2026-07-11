@@ -1,0 +1,76 @@
+"""Prompts that make the annotation contract explicit and reviewable."""
+
+from __future__ import annotations
+
+from .config import RunConfig
+from .models import PaperMap, Paragraph, SourceDocument
+
+
+PAPER_MAP_SYSTEM_PROMPT = (
+    "You are an academic reading assistant. Build a conservative paper-level map from the "
+    "supplied text. Distinguish author claims from your own reading aid. Do not invent "
+    "methods, results, citations, or limitations that are absent from the source. "
+    "Return only JSON matching the requested schema."
+)
+
+ANNOTATION_SYSTEM_PROMPT = (
+    "You are creating source-linked annotations for an academic paper. An annotation is "
+    "not a paraphrase. For every requested anchor, explain: (1) the rhetorical role of "
+    "the passage, (2) how it connects to the previous/next argument or paper-level map, "
+    "(3) the substantive meaning a reader needs, and (4) a short takeaway. State "
+    "uncertainty or missing evidence in caveat rather than inventing it. Keep author "
+    "claims and your interpretation separate. Return only JSON matching the requested schema."
+)
+
+
+def build_paper_map_prompt(document: SourceDocument) -> str:
+    excerpt = "\n\n".join(f"[{p.anchor}] {p.text}" for p in document.paragraphs)
+    return (
+        "Create a reading map for this paper.\n\n"
+        f"Source title: {document.title}\n"
+        f"Paragraphs:\n{excerpt}\n"
+    )
+
+
+def build_annotation_prompt(
+    paper_map: PaperMap,
+    paragraphs: tuple[Paragraph, ...],
+    config: RunConfig,
+    previous: Paragraph | None,
+    following: Paragraph | None,
+) -> str:
+    translation_instruction = (
+        "Provide a faithful Chinese translation for every source passage in the 'translation' field."
+        if config.translation == "full"
+        else "Set every 'translation' field to an empty string."
+    )
+    current_blocks = []
+    for index, paragraph in enumerate(paragraphs):
+        local_previous = paragraphs[index - 1] if index else previous
+        local_following = paragraphs[index + 1] if index + 1 < len(paragraphs) else following
+        context_lines = []
+        if local_previous:
+            context_lines.append(f"Immediate previous [{local_previous.anchor}]: {local_previous.text}")
+        if local_following:
+            context_lines.append(f"Immediate following [{local_following.anchor}]: {local_following.text}")
+        local_context = "\n".join(context_lines) or "No adjacent passage was supplied."
+        current_blocks.append(
+            (
+                f"[{paragraph.anchor}] section={paragraph.section or 'unlabelled'} "
+                f"page={paragraph.page_number or 'unknown'}\n{paragraph.text}\n"
+                f"Local context for {paragraph.anchor}:\n{local_context}"
+            )
+        )
+    current = "\n\n".join(current_blocks)
+    return (
+        "Paper map:\n"
+        f"Title: {paper_map.title}\n"
+        f"Research question: {paper_map.research_question}\n"
+        f"Central claim: {paper_map.central_claim}\n"
+        f"Argument map: {' | '.join(paper_map.argument_map)}\n"
+        f"Scope notes: {paper_map.scope_notes}\n\n"
+        f"Reader focus: {', '.join(config.focus)}\n"
+        f"Annotation depth: {config.annotation_depth}\n"
+        f"{translation_instruction}\n\n"
+        f"Passages requiring one annotation each:\n{current}\n"
+    )

@@ -1,0 +1,17 @@
+Reading Technology Adoption in a Fictional Research Team
+
+1 Introduction
+
+Research teams often receive more articles than they can read closely. This fictional example studies whether a source-linked reading aid changes how quickly a team can identify a paper's research question.
+
+The proposed aid does not replace the original paper. It preserves each source passage and places a note beside it so that readers can verify every explanation against the text.
+
+2 Method
+
+We compare two fictional groups of readers. One group receives ordinary summaries, while the other receives an annotated reading copy that explains how each passage contributes to the argument.
+
+The comparison focuses on comprehension rather than speed alone. A reader who finishes quickly but cannot identify the evidence supporting a conclusion has not completed the intended reading task.
+
+3 Expected contribution
+
+The example illustrates a design principle: a useful annotation connects local wording to the paper-level argument and makes its evidence boundary visible.

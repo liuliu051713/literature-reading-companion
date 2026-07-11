@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Literature Reading Companion annotation response",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "annotations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "anchor": {
+            "type": "string",
+            "description": "Exact paragraph anchor supplied in the prompt."
+          },
+          "translation": {
+            "type": "string",
+            "description": "Faithful Chinese translation, or an empty string when translation is disabled."
+          },
+          "role": {
+            "type": "string",
+            "description": "What this passage does in the paper's argument."
+          },
+          "context": {
+            "type": "string",
+            "description": "How this passage connects to neighbouring passages or the paper-level argument."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "Substantive explanation that goes beyond paraphrase."
+          },
+          "takeaway": {
+            "type": "string",
+            "description": "What a reader should retain after reading the passage."
+          },
+          "caveat": {
+            "type": "string",
+            "description": "A source-grounded limitation, ambiguity, or an explicit statement that no caveat is needed."
+          }
+        },
+        "required": [
+          "anchor",
+          "translation",
+          "role",
+          "context",
+          "explanation",
+          "takeaway",
+          "caveat"
+        ]
+      }
+    }
+  },
+  "required": [
+    "annotations"
+  ]
+}
+
