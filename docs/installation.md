@@ -2,7 +2,7 @@
 
 ## 1. Create a local environment
 
-Python 3.11 or newer is required.
+Python 3.10 or newer is required.
 
 macOS or Linux:
 
